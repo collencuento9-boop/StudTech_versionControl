@@ -13,9 +13,16 @@ import ClassList from "./pages/teacher/ClassList";
 import AttendancePage from "./pages/teacher/AttendancePage";
 import ReportsPage from "./pages/teacher/ReportsPage";
 import CustomerService from "./pages/teacher/CustomerService";
+import AdminLayout from "./layouts/AdminLayout";
 import AdminCreateAccount from "./pages/admin/AdminCreateAccount";
 import AdminLogin from "./pages/admin/AdminLogin";  
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminTeachers from "./pages/admin/AdminTeachers";
+import AdminStudents from "./pages/admin/AdminStudents";
+import AdminGrades from "./pages/admin/AdminGrades";
+import AdminClasses from "./pages/admin/AdminClasses";
+import AdminAttendance from "./pages/admin/AdminAttendance";
+import AdminReports from "./pages/admin/AdminReports";
 
 function App() {
 return ( <Router> <Routes>
@@ -40,7 +47,15 @@ return ( <Router> <Routes>
 
     <Route path="/admin/admin-login" element={<AdminLogin />} />
     <Route path="/admin/admin-create-account" element={<AdminCreateAccount />} />
-    <Route path="/admin/admin-dashboard" element={<AdminDashboard />} />
+    <Route element={<AdminLayout />}>
+      <Route path="/admin/admin-dashboard" element={<AdminDashboard />} />
+      <Route path="/admin/admin-teachers" element={<AdminTeachers />} />
+      <Route path="/admin/admin-students" element={<AdminStudents />} />
+      <Route path="/admin/admin-grades" element={<AdminGrades />} />
+      <Route path="/admin/admin-classes" element={<AdminClasses />} />
+      <Route path="/admin/admin-attendance" element={<AdminAttendance />} />
+      <Route path="/admin/admin-reports" element={<AdminReports />} />
+    </Route>
   </Routes>
 </Router>
 
