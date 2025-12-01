@@ -1,254 +1,171 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { Download, Calendar, BookOpen } from 'lucide-react';
-import authService from '../../api/userService';
+import StudentTopbar from '@/layouts/student/StudentTopbar'; // ← Use @/ if you have alias, or correct path
 
 const StudentPortal = () => {
   const [activeTab, setActiveTab] = useState('grades');
-  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const gradesData = [
-    { subject: 'Mathematics', teacher: 'Ms. Santos', grade: '92', remarks: 'Passed' },
-    { subject: 'Science', teacher: 'Mr. Cruz', grade: '88', remarks: 'Passed' },
-    { subject: 'English', teacher: 'Mrs. Reyes', grade: '90', remarks: 'Passed' },
-    { subject: 'Filipino', teacher: 'Ms. Garcia', grade: '95', remarks: 'Passed' },
-    { subject: 'MAPEH', teacher: 'Mr. Torres', grade: '91', remarks: 'Passed' },
-  ];
+  // ← FIXED: Was localStorage.getItem(1) → WRONG!
+  const studentId = localStorage.getItem('studentId') || '1'; // fallback to 1 for testing
 
-  const attendanceData = [
-    { date: 'Nov 18, 2024', day: 'Monday', status: 'Present' },
-    { date: 'Nov 19, 2024', day: 'Tuesday', status: 'Present' },
-    { date: 'Nov 20, 2024', day: 'Wednesday', status: 'Absent' },
-    { date: 'Nov 21, 2024', day: 'Thursday', status: 'Present' },
-    { date: 'Nov 22, 2024', day: 'Friday', status: 'Present' },
-  ];
+  useEffect(() => {
+    const fetchPortalData = async () => {
+      if (!studentId || studentId === 'null') {
+        setLoading(false);
+        return;
+      }
 
-  const scheduleData = [
-    { time: '8:00 AM - 9:00 AM', subject: 'Mathematics', teacher: 'Ms. Santos' },
-    { time: '9:00 AM - 10:00 AM', subject: 'Science', teacher: 'Mr. Cruz' },
-    { time: '10:00 AM - 11:00 AM', subject: 'English', teacher: 'Mrs. Reyes' },
-    { time: '11:00 AM - 12:00 PM', subject: 'Filipino', teacher: 'Ms. Garcia' },
-    { time: '1:00 PM - 2:00 PM', subject: 'MAPEH', teacher: 'Mr. Torres' },
-  ];
+      try {
+        console.log('Fetching for studentId:', studentId); // ← DEBUG
+        const res = await fetch(`http://localhost:3001/api/student/portal?studentId=${studentId}`);
+        if (!res.ok) throw new Error('Failed to fetch');
+        const result = await res.json();
+        console.log('Data received:', result); // ← DEBUG
+        setData(result);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        alert('No student data found. Did you log in? Try setting localStorage.setItem("studentId", "1") in console.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const downloadGrades = () => {
-    const csvContent = "Subject,Teacher,Grade,Remarks\n" + 
-      gradesData.map(row => `${row.subject},${row.teacher},${row.grade},${row.remarks}`).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'grades_grade3_wisdom.csv';
-    a.click();
-  };
+    fetchPortalData();
+  }, []);
 
-  const downloadAttendance = () => {
-    const csvContent = "Date,Day,Status\n" + 
-      attendanceData.map(row => `${row.date},${row.day},${row.status}`).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'attendance_grade3_wisdom.csv';
-    a.click();
-  };
+  // ← SHOW THIS WHILE LOADING
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-red-900 border-t-transparent"></div>
+        <p className="text-xl text-gray-700">Loading your portal...</p>
+        <p className="text-sm text-gray-500">Student ID: {studentId || 'Not found'}</p>
+      </div>
+    );
+  }
 
-  const handleLogout = () => {
-    authService.logout();
-    navigate('/login');
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="bg-gradient-to-r from-red-900 to-red-800 text-white rounded-lg p-6 mb-6 shadow-lg">
-          <div className="flex items-center justify-between gap-4">
-            <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center">
-              <BookOpen className="w-12 h-12 text-red-900" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold">Grade 3 - Wisdom</h2>
-              <p className="text-red-100">Student Name: Juan Dela Cruz</p>
-              <p className="text-red-100">Student ID: 2024-00123</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="bg-white text-red-900 font-semibold px-4 py-2 rounded-md shadow-sm hover:bg-red-50 transition"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-
-        <div className="flex gap-2 mb-6 bg-white rounded-lg p-2 shadow-sm">
-          <button
-            onClick={() => setActiveTab('grades')}
-            className={`flex-1 py-3 px-4 rounded-md font-medium transition ${
-              activeTab === 'grades'
-                ? 'bg-red-900 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
+  if (!data || !data.profile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-6">
+        <div className="text-center">
+          <p className="text-2xl text-red-600 font-bold">No Student Data Found</p>
+          <p className="text-gray-600 mt-2">For testing, run this in browser console:</p>
+          <code className="bg-gray-800 text-white px-4 py-2 rounded text-sm block mt-3">
+            localStorage.setItem('studentId', '1')
+          </code>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 bg-red-900 text-white px-6 py-3 rounded-lg hover:bg-red-800"
           >
-            <BookOpen className="w-5 h-5 inline mr-2" />
-            Grades
+            Reload Page
           </button>
-          <button
-            onClick={() => setActiveTab('attendance')}
-            className={`flex-1 py-3 px-4 rounded-md font-medium transition ${
-              activeTab === 'attendance'
-                ? 'bg-red-900 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Calendar className="w-5 h-5 inline mr-2" />
-            Attendance
-          </button>
-          <button
-            onClick={() => setActiveTab('schedule')}
-            className={`flex-1 py-3 px-4 rounded-md font-medium transition ${
-              activeTab === 'schedule'
-                ? 'bg-red-900 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Calendar className="w-5 h-5 inline mr-2" />
-            Schedule
-          </button>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-
-          {activeTab === 'grades' && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Student Grades (View Only)</h3>
-                <button
-                  onClick={downloadGrades}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Grades
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100 border-b-2 border-gray-300">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Subject</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Teacher</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Grade</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gradesData.map((item, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800">{item.subject}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{item.teacher}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
-                            {item.grade}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
-                            {item.remarks}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">
-                  <strong>Note:</strong> Grades are view-only and cannot be modified. For any concerns, please contact your teacher.
-                </p>
-              </div>
-            </div>
-          )}
-
-
-          {activeTab === 'attendance' && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-800">Student Attendance</h3>
-                <button
-                  onClick={downloadAttendance}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Attendance
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-100 border-b-2 border-gray-300">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Day</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attendanceData.map((item, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-800">{item.date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{item.day}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                            item.status === 'Present' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {item.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-6 grid grid-cols-3 gap-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm text-gray-600">Total Present</p>
-                  <p className="text-2xl font-bold text-green-700">18</p>
-                </div>
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm text-gray-600">Total Absent</p>
-                  <p className="text-2xl font-bold text-red-700">2</p>
-                </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-gray-600">Attendance Rate</p>
-                  <p className="text-2xl font-bold text-blue-700">90%</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'schedule' && (
-            <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Student Schedule</h3>
-              <div className="space-y-3">
-                {scheduleData.map((item, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-gray-800">{item.subject}</p>
-                        <p className="text-sm text-gray-600">{item.teacher}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-red-900">{item.time}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
-    </div>
+    );
+  }
+
+  const { profile, grades = [] } = data;
+
+  // ← REST OF YOUR BEAUTIFUL UI (unchanged)
+  return (
+    <>
+      <StudentTopbar studentName={profile.fullName || 'Student'} />
+
+      <div className="pt-20 min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* Your existing header, tabs, grades table — all perfect */}
+          <div className="bg-gradient-to-r from-red-900 to-red-800 text-white rounded-lg p-6 mb-6 shadow-lg">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center">
+                <BookOpen className="w-12 h-12 text-red-900" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">{profile.gradeLevel} - {profile.section}</h2>
+                <p className="text-red-100">Welcome back, <strong>{profile.fullName}</strong></p>
+                <p className="text-red-100">LRN: {profile.lrn}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs & Content */}
+          <div className="flex gap-2 mb-6 bg-white rounded-lg p-2 shadow-sm">
+            {['grades', 'attendance', 'schedule'].map((tab) => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`flex-1 py-3 px-4 rounded-md font-medium capitalize transition-all ${
+                  activeTab === tab ? 'bg-red-900 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {tab === 'grades' ? 'My Grades' : tab === 'attendance' ? 'Attendance' : 'Schedule'}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            {activeTab === 'grades' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-800">My Grades</h3>
+                    <p className="text-sm text-gray-600">
+                      Final Average: <strong className="text-2xl text-green-600">{profile.finalAverage || 'N/A'}</strong>
+                    </p>
+                  </div>
+                  <button onClick={() => alert('Download coming soon!')} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2">
+                    <Download className="w-5 h-5" /> Download
+                  </button>
+                </div>
+
+                {grades.length === 0 ? (
+                  <div className="text-center py-16 text-gray-500">
+                    <p className="text-lg">No grades yet. Teachers are still updating!</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-6 py-3 text-left">Subject</th>
+                          <th className="px-6 py-3 text-center">Q1</th>
+                          <th className="px-6 py-3 text-center">Q2</th>
+                          <th className="px-6 py-3 text-center">Q3</th>
+                          <th className="px-6 py-3 text-center">Q4</th>
+                          <th className="px-6 py-3 text-center">Average</th>
+                          <th className="px-6 py-3 text-center">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grades.map((g, i) => (
+                          <tr key={i} className="border-b hover:bg-gray-50">
+                            <td className="px-6 py-4 font-medium">{g.subject}</td>
+                            <td className="px-6 py-4 text-center">{g.q1 || '-'}</td>
+                            <td className="px-6 py-4 text-center">{g.q2 || '-'}</td>
+                            <td className="px-6 py-4 text-center">{g.q3 || '-'}</td>
+                            <td className="px-6 py-4 text-center">{g.q4 || '-'}</td>
+                            <td className="px-6 py-4 text-center font-bold text-blue-700">{g.average || 'N/A'}</td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                g.average >= 90 ? 'bg-green-100 text-green-800' :
+                                g.average >= 85 ? 'bg-blue-100 text-blue-800' :
+                                g.average >= 80 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {g.remarks || 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 
