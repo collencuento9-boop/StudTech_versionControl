@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -16,27 +16,130 @@ import {
   TrophyIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/solid";
+import axios from "../../api/axiosConfig";
 
 export default function ReportsPage() {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedSection, setSelectedSection] = useState("");
+  const [attendanceData, setAttendanceData] = useState([]);
+  const [subjectsData, setSubjectsData] = useState([]);
+  const [topStudents, setTopStudents] = useState([]);
+  const [stats, setStats] = useState({
+    attendanceRate: 0,
+    classAverage: 0,
+    lateStudents: 0,
+    honorStudents: 0
+  });
+  const [loading, setLoading] = useState(true);
 
-  const attendanceData = [
-    { day: "Mon", present: 38, absent: 2 },
-    { day: "Tue", present: 37, absent: 3 },
-    { day: "Wed", present: 39, absent: 1 },
-    { day: "Thu", present: 36, absent: 4 },
-    { day: "Fri", present: 40, absent: 0 },
-    { day: "Sat", present: 35, absent: 5 },
-    { day: "Sun", present: 38, absent: 2 },
-  ];
+  useEffect(() => {
+    loadReportsData();
+  }, [selectedSection]);
 
-  const subjectsData = [
-    { subject: "Mathematics", average: 88 },
-    { subject: "English", average: 92 },
-    { subject: "Science", average: 85 },
-    { subject: "Filipino", average: 90 },
-    { subject: "Araling Panlipunan", average: 87 },
-  ];
+  const loadReportsData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch students
+      const studentsResponse = await axios.get('/students');
+      let students = Array.isArray(studentsResponse.data.data) 
+        ? studentsResponse.data.data 
+        : Array.isArray(studentsResponse.data) 
+        ? studentsResponse.data 
+        : [];
+
+      // Filter by section if selected
+      if (selectedSection) {
+        students = students.filter(s => `${s.gradeLevel} - ${s.section}` === selectedSection);
+      }
+
+      // Fetch attendance data
+      const attendanceResponse = await axios.get('/attendance');
+      const allAttendance = Array.isArray(attendanceResponse.data.data) 
+        ? attendanceResponse.data.data 
+        : Array.isArray(attendanceResponse.data) 
+        ? attendanceResponse.data 
+        : [];
+
+      // Calculate weekly attendance (last 7 days)
+      const today = new Date();
+      const weekData = {};
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayName = days[date.getDay()];
+        
+        const dayRecords = allAttendance.filter(r => r.date === dateStr);
+        const present = dayRecords.filter(r => r.status === 'Present').length;
+        const absent = dayRecords.filter(r => r.status === 'Absent').length;
+        
+        weekData[dayName] = { day: dayName, present: present || 0, absent: absent || 0 };
+      }
+
+      setAttendanceData(Object.values(weekData));
+
+      // Calculate subject averages
+      const subjectAvgs = {};
+      students.forEach(student => {
+        if (student.grades) {
+          Object.entries(student.grades).forEach(([subject, grades]) => {
+            if (!subjectAvgs[subject]) {
+              subjectAvgs[subject] = { subject, total: 0, count: 0 };
+            }
+            const q1 = grades.q1 || 0;
+            if (q1 > 0) {
+              subjectAvgs[subject].total += q1;
+              subjectAvgs[subject].count += 1;
+            }
+          });
+        }
+      });
+
+      const finalSubjectData = Object.values(subjectAvgs).map(s => ({
+        subject: s.subject,
+        average: s.count > 0 ? Math.round(s.total / s.count) : 0
+      }));
+
+      setSubjectsData(finalSubjectData.slice(0, 5));
+
+      // Get top performing students
+      const topPerformers = students
+        .filter(s => s.average && s.average > 0)
+        .sort((a, b) => (b.average || 0) - (a.average || 0))
+        .slice(0, 3)
+        .map((s, idx) => ({
+          rank: idx + 1,
+          name: `${s.lastName}, ${s.firstName}`,
+          avg: s.average || 0
+        }));
+
+      setTopStudents(topPerformers);
+
+      // Calculate statistics
+      const totalStudents = students.length;
+      const presentToday = allAttendance.filter(r => r.date === new Date().toISOString().split('T')[0] && r.status === 'Present').length;
+      const lateToday = allAttendance.filter(r => r.date === new Date().toISOString().split('T')[0] && r.status === 'Late').length;
+      const classAverage = students.length > 0 
+        ? Math.round(students.reduce((sum, s) => sum + (s.average || 0), 0) / students.length * 10) / 10
+        : 0;
+      const honorStudents = students.filter(s => (s.average || 0) >= 90).length;
+
+      setStats({
+        attendanceRate: totalStudents > 0 ? Math.round((presentToday / totalStudents) * 100 * 10) / 10 : 0,
+        classAverage: classAverage,
+        lateStudents: lateToday,
+        honorStudents: honorStudents
+      });
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading reports data:', error);
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -56,13 +159,17 @@ export default function ReportsPage() {
 
           <div className="relative">
             <select
-              defaultValue=""
+              value={selectedSection}
               onClick={() => setShowDropdown(!showDropdown)}
-              onChange={() => setShowDropdown(false)}      
+              onChange={(e) => {
+                setSelectedSection(e.target.value);
+                setShowDropdown(false);
+              }}
               onBlur={() => setShowDropdown(false)}    
               className="px-5 py-3 pr-12 bg-red-50 border-2 border-red-300 rounded-xl font-bold text-red-800 text-base focus:outline-none focus:ring-3 focus:ring-red-100 appearance-none cursor-pointer transition-all"
             >
-              <option value="" disabled>Select section</option>
+              <option value="">All Sections</option>
+              <option value="Grade 1 - Love">Grade 1 - Love</option>
               <option value="Grade 1 - Humility">Grade 1 - Humility</option>
               <option value="Grade 2 - Kindness">Grade 2 - Kindness</option>
               <option value="Grade 3 - Wisdom">Grade 3 - Wisdom</option>
@@ -83,22 +190,22 @@ export default function ReportsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-2xl p-6 shadow-xl">
-          <p className="text-4xl font-bold">95.8%</p>
+          <p className="text-4xl font-bold">{stats.attendanceRate}%</p>
           <p className="text-lg mt-2 opacity-90">Attendance Rate</p>
-          <p className="text-sm opacity-80">This week</p>
+          <p className="text-sm opacity-80">Today</p>
         </div>
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-6 shadow-xl">
-          <p className="text-4xl font-bold">89.4</p>
+          <p className="text-4xl font-bold">{stats.classAverage}</p>
           <p className="text-lg mt-2 opacity-90">Class Average</p>
           <p className="text-sm opacity-80">All subjects</p>
         </div>
         <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-2xl p-6 shadow-xl">
-          <p className="text-4xl font-bold">12</p>
+          <p className="text-4xl font-bold">{stats.lateStudents}</p>
           <p className="text-lg mt-2 opacity-90">Late Students</p>
-          <p className="text-sm opacity-80">This week</p>
+          <p className="text-sm opacity-80">Today</p>
         </div>
         <div className="bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-2xl p-6 shadow-xl">
-          <p className="text-4xl font-bold">3</p>
+          <p className="text-4xl font-bold">{stats.honorStudents}</p>
           <p className="text-lg mt-2 opacity-90">Honor Students</p>
           <p className="text-sm opacity-80">With honors</p>
         </div>
@@ -145,39 +252,41 @@ export default function ReportsPage() {
 
   <div className="p-6 h-[calc(100%-90px)] overflow-y-auto">
     <div className="space-y-6">
-      {[
-        { rank: 1, name: "Bautista, Juan Miguel Mortel", avg: 94.8 },
-        { rank: 2, name: "Santos, Maria Clara", avg: 93.2 },
-        { rank: 3, name: "Reyes, Pedro Juan", avg: 91.5 },
-      ].map((student) => (
-        <div
-          key={student.rank}
-          className="flex items-center justify-between p-6 bg-gradient-to-r from-red-50 to-pink-50 rounded-2xl border border-red-200 hover:shadow-lg transition h-[80px]"
-        >
-          <div className="flex items-center gap-6">
-            <div
-              className={`text-xl font-bold ${
-                student.rank === 1
-                  ? "text-yellow-500"
-                  : student.rank === 2
-                  ? "text-gray-400"
-                  : "text-orange-600"
-              }`}
-            >
-              #{student.rank}
+      {loading ? (
+        <p className="text-center text-gray-500">Loading top students...</p>
+      ) : topStudents.length === 0 ? (
+        <p className="text-center text-gray-500">No students found</p>
+      ) : (
+        topStudents.map((student) => (
+          <div
+            key={student.rank}
+            className="flex items-center justify-between p-6 bg-gradient-to-r from-red-50 to-pink-50 rounded-2xl border border-red-200 hover:shadow-lg transition h-[80px]"
+          >
+            <div className="flex items-center gap-6">
+              <div
+                className={`text-xl font-bold ${
+                  student.rank === 1
+                    ? "text-yellow-500"
+                    : student.rank === 2
+                    ? "text-gray-400"
+                    : "text-orange-600"
+                }`}
+              >
+                #{student.rank}
+              </div>
+              <div>
+                <p className="text-xl font-bold text-gray-900">{student.name}</p>
+                <p className="text-base text-gray-600">General Average</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xl font-bold text-gray-900">{student.name}</p>
-              <p className="text-base text-gray-600">General Average</p>
-            </div>
-          </div>
 
-          <div className="text-right">
-            <p className="text-xl font-bold text-red-700">{student.avg}</p>
-            <p className="text-base font-semibold text-red-800">With Honors</p>
+            <div className="text-right">
+              <p className="text-xl font-bold text-red-700">{student.avg}</p>
+              <p className="text-base font-semibold text-red-800">With Honors</p>
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   </div>
 </div>

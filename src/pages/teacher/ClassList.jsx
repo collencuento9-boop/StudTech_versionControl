@@ -7,6 +7,7 @@ import {
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import QRCode from "qrcode";
+import axios from "../../api/axiosConfig";
 import ViewStudentModal from '@/components/modals/ViewStudentModal'
 import EditStudentModal from '@/components/modals/EditStudentModal'
 import DeleteRequestModal from '@/components/modals/DeleteRequestModal'
@@ -41,36 +42,21 @@ export default function ClassList() {
 
   const fetchStudents = async () => {
     try {
-      const token = localStorage.getItem('token');
-      // Get current user info from token if needed, or fetch from backend
-      // This endpoint should filter by teacher/adviser automatically
-      const response = await fetch('http://localhost:5000/api/student/my-students', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      setLoading(true);
+      // Fetch students from the API using axios
+      const response = await axios.get('/students');
+      const studentData = Array.isArray(response.data.data) 
+        ? response.data.data 
+        : Array.isArray(response.data) 
+        ? response.data 
+        : [];
       
-      if (!response.ok) {
-        // Fallback to all students if filtered endpoint not available
-        const response2 = await fetch('http://localhost:5000/api/students');
-        const data = await response2.json();
-        setStudents(Array.isArray(data) ? data : []);
-      } else {
-        const data = await response.json();
-        setStudents(Array.isArray(data) ? data : []);
-      }
-      
+      console.log('Students fetched:', studentData.length);
+      setStudents(studentData);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching students:', error);
-      // Fallback to all students
-      try {
-        const response = await fetch('http://localhost:5000/api/students');
-        const data = await response.json();
-        setStudents(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error('Fallback fetch also failed:', e);
-      }
+      setStudents([]);
       setLoading(false);
     }
   };
@@ -128,18 +114,15 @@ export default function ClassList() {
         profilePic: editFormData.profilePic  // Send updated photo
       };
 
-      const response = await fetch(`http://localhost:5000/api/students/${selectedStudent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData)
-      });
+      const response = await axios.put(`/students/${selectedStudent.id}`, updatedData);
 
-      if (response.ok) {
+      if (response.data.success || response.status === 200) {
         alert('Student updated successfully!');
         fetchStudents();
         setShowEditModal(false);
       }
     } catch (error) {
+      console.error('Error updating student:', error);
       alert('Failed to update student');
     }
   };
@@ -157,25 +140,32 @@ export default function ClassList() {
     }
 
     try {
-      const response = await fetch('http://localhost:3001/api/delete-requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentId: selectedStudent.id,
-          studentName: selectedStudent.fullName,
-          studentLRN: selectedStudent.lrn,
-          requestedBy: 'Teacher Name',
-          reason: deleteReason
-        })
+      // For now, send delete request to the main API server
+      const response = await axios.post('/delete-requests', {
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.fullName,
+        studentLRN: selectedStudent.lrn,
+        requestedBy: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).name : 'Teacher',
+        reason: deleteReason,
+        requestedAt: new Date().toISOString()
       });
 
-      if (response.ok) {
+      if (response.data.success || response.status === 200) {
         alert('Delete request sent to admin for approval!');
         setShowDeleteRequestModal(false);
         setDeleteReason("");
+      } else {
+        alert('Failed to send delete request');
       }
     } catch (error) {
-      alert('Failed to send request');
+      console.error('Error submitting delete request:', error);
+      // Check if it's a 404 (endpoint doesn't exist), then show a message
+      if (error.response?.status === 404) {
+        alert('Delete request feature coming soon. Please contact admin directly.');
+      } else {
+        alert('Failed to send delete request');
+      }
+      setShowDeleteRequestModal(false);
     }
   };
 

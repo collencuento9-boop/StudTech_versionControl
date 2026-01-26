@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import api from "../../api/axiosConfig";
 import {
   BookOpenIcon,
   UserGroupIcon,
@@ -72,7 +73,9 @@ export default function EditGrades() {
       // Subject teachers can only edit their assigned subjects
       setAvailableSubjects(assignedSubjects);
     }
-  }, [userRole, assignedSubjects, selectedGradeLevel]);  const fetchStudents = async () => {
+  }, [userRole, assignedSubjects, selectedGradeLevel]);
+
+  const fetchStudents = async () => {
     try {
       // Get user info from localStorage
       const userStr = localStorage.getItem("user");
@@ -87,16 +90,17 @@ export default function EditGrades() {
         console.log('User role:', currentUserRole);
       }
 
-      // Fetch students
-      const response = await fetch('http://localhost:5000/api/students');
-      const data = await response.json();
-      setStudents(Array.isArray(data) ? data : []);
+      // Fetch students using api
+      const response = await api.get('/students');
+      const studentData = response.data.data || response.data;
+      setStudents(Array.isArray(studentData) ? studentData : []);
+      console.log('Fetched students:', studentData);
 
       // If subject teacher, fetch assigned subjects from classes
       if (currentUserRole === 'subject_teacher' && userId) {
-        const classesResponse = await fetch(`http://localhost:5000/api/classes/subject-teacher/${userId}`);
-        if (classesResponse.ok) {
-          const classesData = await classesResponse.json();
+        try {
+          const classesResponse = await api.get(`/classes/subject-teacher/${userId}`);
+          const classesData = classesResponse.data;
           const classes = Array.isArray(classesData.data) ? classesData.data : [];
           
           // Extract all unique subjects from assigned classes
@@ -118,8 +122,8 @@ export default function EditGrades() {
           if (subjects.length > 0) {
             setSelectedSubject(subjects[0]);
           }
-        } else {
-          console.log('Failed to fetch classes:', classesResponse.status);
+        } catch (err) {
+          console.error('Error fetching classes:', err);
         }
       }
 

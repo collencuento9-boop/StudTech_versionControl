@@ -33,6 +33,14 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+
+app.listen(PORT, '0.0.0.0', (err) => {
+  if (err) {
+    console.error('Error starting server:', err);
+    return;
+  }
+  console.log(`Server is running on http://0.0.0.0:${PORT}`);
+  console.log(`Access from network at http://192.168.1.169:${PORT}`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
 });

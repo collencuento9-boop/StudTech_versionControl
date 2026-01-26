@@ -1,1 +1,124 @@
-[]
+[
+  {
+    "id": "1769220481116",
+    "studentId": "20427c5a-318b-4c30-a6da-611e8effffeb",
+    "studentName": "Shahid Abdulkarim",
+    "gradeLevel": "Grade 3",
+    "section": "Wisdom",
+    "date": "2026-01-24",
+    "timestamp": "2026-01-24T02:08:01.116Z",
+    "status": "Present",
+    "location": "Test QR Portal",
+    "deviceInfo": {
+      "platform": "test"
+    }
+  },
+  {
+    "id": "1769221069872",
+    "studentId": "80e0ab6c-13da-4542-8e88-01db4fc1b866",
+    "studentName": "Muhammad Omor Ahmad",
+    "gradeLevel": "Grade 3",
+    "section": "Wisdom",
+    "date": "2026-01-24",
+    "timestamp": "2026-01-24T02:17:49.873Z",
+    "status": "Present",
+    "location": "QR Portal",
+    "deviceInfo": {
+      "platform": "test"
+    }
+  },
+  {
+    "id": "1769416535772",
+    "studentId": "853f29fa-9d10-4f49-ae06-747094315b1f",
+    "studentName": "Matthew Xander Alacre",
+    "gradeLevel": "Grade 3",
+    "section": "Diligence",
+    "date": "2026-01-26",
+    "timestamp": "2026-01-26T08:35:35.772Z",
+    "time": "4:35:35 PM",
+    "status": "Present",
+    "period": "morning",
+    "location": "QR Portal",
+    "teacherId": null,
+    "teacherName": null,
+    "deviceInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+    },
+    "qrData": {
+      "name": "Matthew Xander Alacre",
+      "studentId": "17664342848250040",
+      "section": "Diligence"
+    }
+  },
+  {
+    "id": "1769416621935",
+    "studentId": "c25e0fb7-8af1-456d-b308-9630c0c9d4e3",
+    "studentName": "Cid Raeed Aranan",
+    "gradeLevel": "Grade 3",
+    "section": "Diligence",
+    "date": "2026-01-26",
+    "timestamp": "2026-01-26T08:37:01.935Z",
+    "time": "4:37:01 PM",
+    "status": "Present",
+    "period": "morning",
+    "location": "QR Portal",
+    "teacherId": null,
+    "teacherName": null,
+    "deviceInfo": {
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+    },
+    "qrData": {
+      "name": "Cid Raeed Aranan",
+      "studentId": "17664342852950041",
+      "section": "Diligence"
+    }
+  },
+  {
+    "id": "1769417288235",
+    "studentId": "17664342848250040",
+    "studentName": "Matthew Xander Alacre",
+    "gradeLevel": "Grade 3",
+    "section": "Diligence",
+    "date": "2026-01-26",
+    "timestamp": "2026-01-26T08:48:07.792Z",
+    "time": "4:48:07 PM",
+    "status": "absent",
+    "period": "afternoon",
+    "location": "Mobile App",
+    "teacherId": "63bc1bd0-359f-4372-8581-5a626e5e16f7",
+    "teacherName": null,
+    "deviceInfo": {}
+  },
+  {
+    "id": "1769418062981",
+    "studentId": "17664341466940000",
+    "studentName": "Shahid Abdulkarim",
+    "gradeLevel": "Grade 3",
+    "section": "Wisdom",
+    "date": "2026-01-26",
+    "timestamp": "2026-01-26T09:01:02.485Z",
+    "time": "5:01:02 PM",
+    "status": "absent",
+    "period": "afternoon",
+    "location": "Mobile App",
+    "teacherId": "63bc1bd0-359f-4372-8581-5a626e5e16f7",
+    "teacherName": null,
+    "deviceInfo": {}
+  },
+  {
+    "id": "1769418775784",
+    "studentId": "17664341483410004",
+    "studentName": "Ziyadh Gadjali",
+    "gradeLevel": "Grade 3",
+    "section": "Wisdom",
+    "date": "2026-01-26",
+    "timestamp": "2026-01-26T09:12:51.975Z",
+    "time": "5:12:51 PM",
+    "status": "absent",
+    "period": "afternoon",
+    "location": "Mobile App",
+    "teacherId": "63bc1bd0-359f-4372-8581-5a626e5e16f7",
+    "teacherName": null,
+    "deviceInfo": {}
+  }
+]

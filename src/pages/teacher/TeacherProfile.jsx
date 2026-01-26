@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserCircleIcon, PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { authService } from "../../api/userService";
+import api from "../../api/axiosConfig";
 
 export default function TeacherProfile() {
   const [isEditing, setIsEditing] = useState(false);
@@ -28,6 +29,49 @@ export default function TeacherProfile() {
             email: user.email || "",
             position: user.position || "Teacher"
           }));
+
+          // Fetch assigned classes/schedule
+          if (user.id) {
+            try {
+              const classesResponse = await api.get(`/classes/subject-teacher/${user.id}`);
+              const classes = Array.isArray(classesResponse.data.data) ? classesResponse.data.data : [];
+              
+              // Transform classes to schedules
+              // For subject teachers, extract subjects from subject_teachers array
+              const scheduleData = [];
+              classes.forEach(cls => {
+                if (cls.subject_teachers && Array.isArray(cls.subject_teachers)) {
+                  cls.subject_teachers.forEach(st => {
+                    if (st.teacher_id === user.id) {
+                      // Convert 24-hour time to 12-hour format
+                      const convertTime = (time24) => {
+                        if (!time24) return '8:00 AM';
+                        const [hours, minutes] = time24.split(':');
+                        const hour = parseInt(hours);
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const hour12 = hour % 12 || 12;
+                        return `${hour12}:${minutes} ${ampm}`;
+                      };
+                      
+                      scheduleData.push({
+                        id: `${cls.id}-${st.subject}`,
+                        day: st.day || "Monday - Friday",
+                        time: `${convertTime(st.start_time)} - ${convertTime(st.end_time)}`,
+                        subject: st.subject || "",
+                        gradeSection: `${cls.grade || 'Grade'} - ${cls.section || 'Section'}`
+                      });
+                    }
+                  });
+                }
+              });
+              
+              setSchedules(scheduleData);
+              console.log('Loaded schedules:', scheduleData);
+            } catch (err) {
+              console.error('Error fetching classes:', err);
+              // Keep default schedules if API fails
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch user data:", error);
@@ -35,15 +79,18 @@ export default function TeacherProfile() {
         setLoading(false);
       }
     };
+    
+    // Fetch data immediately on mount
     fetchUserData();
+    
+    // Auto-refresh every 10 seconds to reflect admin changes
+    const interval = setInterval(fetchUserData, 10000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
   }, []);
 
-  const [schedules, setSchedules] = useState([
-    { id: 1, day: "Monday - Friday", time: "8:00 AM - 9:00 AM", subject: "English", gradeSection: "Grade 3 - Wisdom" },
-    { id: 2, day: "Monday - Friday", time: "10:00 AM - 11:00 AM", subject: "Filipino", gradeSection: "Grade 3 - Diligence" },
-    { id: 3, day: "Monday - Friday", time: "11:00 AM - 12:00 NOON", subject: "Arpan", gradeSection: "Grade 3 - Diligence" },
-    { id: 4, day: "Monday - Friday", time: "1:00 PM - 2:00 PM", subject: "English", gradeSection: "Grade 3 - Wisdom" }
-  ]);
+  const [schedules, setSchedules] = useState([]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

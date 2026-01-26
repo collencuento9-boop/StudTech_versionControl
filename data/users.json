@@ -26,7 +26,19 @@
         "username": "josie.banalo",
         "role": "teacher",
         "email": "josie.banalo@wmsu.edu.ph",
-        "password": "$2b$12$replace_with_real_hash",
+        "password": "$2b$12$W.GDdCZXggI8yZkxpNN9d.fzF7gBSr6bDlUKdv35IlljggKDIAAW",
+        "status": "approved",
+        "createdAt": "2025-12-22T00:00:00.000Z"
+    },
+    {
+        "id": "test-teacher-001",
+        "firstName": "Test",
+        "lastName": "Teacher",
+        "username": "test.teacher",
+        "role": "teacher",
+        "email": "test@wmsu.edu.ph",
+        "password": "$2b$12$pIyXp0oNpVIIBePyZSPl2.oaM1Q5Tg57.VWkfrRNf8c13EKbbI7N.",
+        "status": "approved",
         "createdAt": "2025-12-22T00:00:00.000Z"
     },
     {

@@ -36,7 +36,23 @@ const saveAttendanceData = (data) => {
 // POST /api/attendance - Record attendance via QR scan
 router.post('/', async (req, res) => {
   try {
-    const { studentId, qrData, location, deviceInfo } = req.body;
+    console.log('Attendance POST request body:', req.body);
+    
+    // Handle both QR scan format and mobile app format
+    const { 
+      studentId, 
+      qrData, 
+      location, 
+      deviceInfo,
+      // Mobile app format
+      teacherId,
+      teacherName,
+      timestamp,
+      date,
+      time,
+      status,
+      period
+    } = req.body;
     
     if (!studentId) {
       return res.status(400).json({
@@ -48,9 +64,16 @@ router.post('/', async (req, res) => {
     // Get student data to validate
     const studentsPath = path.join(__dirname, '../../data/students.json');
     const students = JSON.parse(fs.readFileSync(studentsPath, 'utf8'));
-    const student = students.find(s => s.id === studentId);
+    
+    // Check for student by ID, studentId, or LRN
+    const student = students.find(s => 
+      s.id === studentId || 
+      s.studentId === studentId || 
+      s.lrn === studentId
+    );
     
     if (!student) {
+      console.log('Student not found with ID:', studentId);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
@@ -61,13 +84,14 @@ router.post('/', async (req, res) => {
     const attendanceData = getAttendanceData();
     
     // Check if already recorded today
-    const today = new Date().toISOString().split('T')[0];
+    const today = date || new Date().toISOString().split('T')[0];
     const existingRecord = attendanceData.find(record => 
       record.studentId === studentId && 
       record.date === today
     );
 
-    if (existingRecord) {
+    // For mobile app, allow updating existing records
+    if (existingRecord && !teacherId) {
       return res.status(400).json({
         success: false,
         message: 'Attendance already recorded for today',
@@ -79,19 +103,35 @@ router.post('/', async (req, res) => {
     const attendanceRecord = {
       id: Date.now().toString(),
       studentId: studentId,
-      studentName: student.fullName,
+      studentName: student.fullName || student.name,
       gradeLevel: student.gradeLevel,
       section: student.section,
       date: today,
-      timestamp: new Date().toISOString(),
-      status: 'Present',
-      location: location || 'Unknown',
+      timestamp: timestamp || new Date().toISOString(),
+      time: time || new Date().toLocaleTimeString(),
+      status: status || 'Present',
+      period: period || 'morning',
+      location: location || 'Mobile App',
+      teacherId: teacherId || null,
+      teacherName: teacherName || null,
       deviceInfo: deviceInfo || {},
       qrData: qrData
     };
 
+    // If updating existing record, remove old one
+    if (existingRecord && teacherId) {
+      const index = attendanceData.findIndex(record => 
+        record.studentId === studentId && record.date === today
+      );
+      if (index !== -1) {
+        attendanceData.splice(index, 1);
+      }
+    }
+
     // Add to attendance data
     attendanceData.push(attendanceRecord);
+    
+    console.log('Saving attendance record:', attendanceRecord);
     
     // Save to file
     if (saveAttendanceData(attendanceData)) {

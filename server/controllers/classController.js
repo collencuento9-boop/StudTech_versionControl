@@ -243,9 +243,9 @@ const unassignAdviser = (req, res) => {
 const assignSubjectTeacher = (req, res) => {
   try {
     const { classId } = req.params;
-    const { teacher_id, teacher_name, subject } = req.body;
+    const { teacher_id, teacher_name, subject, day, start_time, end_time } = req.body;
 
-    console.log('assignSubjectTeacher - classId:', classId, 'teacher_id:', teacher_id, 'teacher_name:', teacher_name, 'subject:', subject);
+    console.log('assignSubjectTeacher - classId:', classId, 'teacher_id:', teacher_id, 'teacher_name:', teacher_name, 'subject:', subject, 'day:', day, 'start_time:', start_time, 'end_time:', end_time);
 
     const classes = readClasses();
     let classItem = classes.find(c => c.id === classId);
@@ -280,6 +280,9 @@ const assignSubjectTeacher = (req, res) => {
       teacher_id,
       teacher_name,
       subject,
+      day: day || 'Monday - Friday',
+      start_time: start_time || '08:00',
+      end_time: end_time || '09:00',
       assignedAt: new Date().toISOString()
     });
 

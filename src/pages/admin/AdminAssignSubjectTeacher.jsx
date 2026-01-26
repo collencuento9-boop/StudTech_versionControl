@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { UserGroupIcon, CheckCircleIcon, XCircleIcon, TrashIcon } from "@heroicons/react/24/solid";
+import api from "../../api/axiosConfig";
 
 export default function AdminAssignSubjectTeacher() {
   const [classes, setClasses] = useState([]);
@@ -7,6 +8,9 @@ export default function AdminAssignSubjectTeacher() {
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [selectedDay, setSelectedDay] = useState("Monday - Friday");
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("09:00");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState(""); // "success" or "error"
@@ -31,29 +35,23 @@ export default function AdminAssignSubjectTeacher() {
   const fetchData = async () => {
     try {
       // Fetch all classes with adviser info
-      const classesResponse = await fetch('http://localhost:5000/api/classes');
-      if (classesResponse.ok) {
-        const classesData = await classesResponse.json();
-        const classList = Array.isArray(classesData.data) ? classesData.data : [];
-        console.log('Classes loaded:', classList);
-        setClasses(classList);
-      }
+      const classesResponse = await api.get('/classes');
+      const classList = Array.isArray(classesResponse.data.data) ? classesResponse.data.data : [];
+      console.log('Classes loaded:', classList);
+      setClasses(classList);
 
       // Fetch teachers/subject teachers
-      const teachersResponse = await fetch('http://localhost:5000/api/users');
-      if (teachersResponse.ok) {
-        const data = await teachersResponse.json();
-        const allUsers = data.data?.users || data.users || [];
-        
-        // Filter for subject teachers and regular teachers
-        const teachersList = allUsers.filter(user => {
-          const role = (user.role || '').toLowerCase().trim();
-          return role === 'subject_teacher' || role === 'teacher';
-        });
-        
-        console.log(`Found ${teachersList.length} subject teachers:`, teachersList.map(t => `${t.firstName} ${t.lastName} (${t.role})`));
-        setTeachers(teachersList);
-      }
+      const teachersResponse = await api.get('/users');
+      const allUsers = teachersResponse.data.data?.users || teachersResponse.data.users || [];
+      
+      // Filter for subject teachers and regular teachers
+      const teachersList = allUsers.filter(user => {
+        const role = (user.role || '').toLowerCase().trim();
+        return role === 'subject_teacher' || role === 'teacher';
+      });
+      
+      console.log(`Found ${teachersList.length} subject teachers:`, teachersList.map(t => `${t.firstName} ${t.lastName} (${t.role})`));
+      setTeachers(teachersList);
     } catch (error) {
       console.error('Error fetching data:', error);
       setMessage("Error loading data: " + error.message);
@@ -74,75 +72,62 @@ export default function AdminAssignSubjectTeacher() {
       console.log('Assigning teacher:', teacher);
       console.log('To class:', selectedClass);
       console.log('Subject:', selectedSubject);
+      console.log('Schedule:', selectedDay, startTime, endTime);
       
-      const response = await fetch(
-        `http://localhost:5000/api/classes/${selectedClass.id}/assign-subject-teacher`,
+      const response = await api.put(
+        `/classes/${selectedClass.id}/assign-subject-teacher`,
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            teacher_id: teacher.id,
-            teacher_name: `${teacher.firstName} ${teacher.lastName}`,
-            subject: selectedSubject
-          })
+          teacher_id: teacher.id,
+          teacher_name: `${teacher.firstName} ${teacher.lastName}`,
+          subject: selectedSubject,
+          day: selectedDay,
+          start_time: startTime,
+          end_time: endTime
         }
       );
 
-      const responseData = await response.json();
-      console.log('Response:', response.status, responseData);
+      console.log('Response:', response.status, response.data);
 
-      if (response.ok) {
-        setMessage(`Successfully assigned ${teacher.firstName} ${teacher.lastName} (${selectedSubject}) to ${selectedClass.grade} - ${selectedClass.section}`);
-        setMessageType("success");
-        setSelectedTeacher("");
-        setSelectedSubject("");
-        
-        // Update local state
-        const updatedClasses = classes.map(c => 
-          c.id === selectedClass.id 
-            ? responseData.data
-            : c
-        );
-        setClasses(updatedClasses);
-      } else {
-        setMessage(`Error assigning subject teacher: ${responseData.message || response.statusText}`);
-        setMessageType("error");
-      }
+      setMessage(`Successfully assigned ${teacher.firstName} ${teacher.lastName} (${selectedSubject}) to ${selectedClass.grade} - ${selectedClass.section}`);
+      setMessageType("success");
+      setSelectedTeacher("");
+      setSelectedSubject("");
+      setStartTime("08:00");
+      setEndTime("09:00");
+      
+      // Update local state
+      const updatedClasses = classes.map(c => 
+        c.id === selectedClass.id 
+          ? response.data.data
+          : c
+      );
+      setClasses(updatedClasses);
     } catch (error) {
       console.error('Error assigning subject teacher:', error);
-      setMessage("Error assigning subject teacher: " + error.message);
+      setMessage("Error assigning subject teacher: " + (error.response?.data?.message || error.message));
       setMessageType("error");
     }
   };
 
   const handleRemoveSubjectTeacher = async (classId, teacherId) => {
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/classes/${classId}/unassign-subject-teacher/${teacherId}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' }
-        }
+      const response = await api.put(
+        `/classes/${classId}/unassign-subject-teacher/${teacherId}`
       );
 
-      if (response.ok) {
-        setMessage("Subject teacher removed successfully");
-        setMessageType("success");
-        
-        // Update local state
-        const updatedClasses = classes.map(c => {
-          if (c.id === classId) {
-            const updatedClass = { ...c };
-            updatedClass.subject_teachers = (updatedClass.subject_teachers || []).filter(t => t.teacher_id !== teacherId);
-            return updatedClass;
-          }
-          return c;
-        });
-        setClasses(updatedClasses);
-      } else {
-        setMessage("Error removing subject teacher");
-        setMessageType("error");
-      }
+      setMessage("Subject teacher removed successfully");
+      setMessageType("success");
+      
+      // Update local state
+      const updatedClasses = classes.map(c => {
+        if (c.id === classId) {
+          const updatedClass = { ...c };
+          updatedClass.subject_teachers = (updatedClass.subject_teachers || []).filter(t => t.teacher_id !== teacherId);
+          return updatedClass;
+        }
+        return c;
+      });
+      setClasses(updatedClasses);
     } catch (error) {
       console.error('Error removing subject teacher:', error);
       setMessage("Error removing subject teacher: " + error.message);
@@ -240,6 +225,50 @@ export default function AdminAssignSubjectTeacher() {
                     ))}
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Day
+                  </label>
+                  <select
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  >
+                    <option value="Monday - Friday">Monday - Friday</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Time Period
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-600 mb-1">From</label>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-600 mb-1">To</label>
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <button
@@ -277,14 +306,17 @@ export default function AdminAssignSubjectTeacher() {
                         <div className="space-y-2">
                           {cls.subject_teachers.map((st, idx) => (
                             <div key={idx} className="flex justify-between items-center bg-blue-50 p-3 rounded">
-                              <div>
+                              <div className="flex-1">
                                 <p className="text-sm font-medium text-gray-800">
                                   {st.teacher_name} - <span className="text-blue-600">{st.subject}</span>
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  <span className="font-semibold">{st.day || 'Monday - Friday'}</span> • <span className="font-semibold">{st.start_time || '08:00'} - {st.end_time || '09:00'}</span>
                                 </p>
                               </div>
                               <button
                                 onClick={() => handleRemoveSubjectTeacher(cls.id, st.teacher_id)}
-                                className="text-red-600 hover:text-red-800 p-1"
+                                className="text-red-600 hover:text-red-800 p-1 flex-shrink-0"
                                 title="Remove subject teacher"
                               >
                                 <TrashIcon className="w-5 h-5" />

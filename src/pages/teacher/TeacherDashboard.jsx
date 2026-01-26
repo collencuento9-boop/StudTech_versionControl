@@ -1,11 +1,106 @@
+import { useState, useEffect } from "react";
 import {
   UserCircleIcon,
   UsersIcon,
   CalendarIcon,
   ChartBarSquareIcon,
 } from "@heroicons/react/24/solid";
+import axios from "../../api/axiosConfig";
 
 export default function TeacherDashboard() {
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    activeClasses: 0,
+    averageAttendance: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch students
+      const studentsResponse = await axios.get('/students');
+      const students = Array.isArray(studentsResponse.data.data) 
+        ? studentsResponse.data.data 
+        : Array.isArray(studentsResponse.data) 
+        ? studentsResponse.data 
+        : [];
+
+      // Fetch attendance
+      const attendanceResponse = await axios.get('/attendance');
+      const allAttendance = Array.isArray(attendanceResponse.data.data) 
+        ? attendanceResponse.data.data 
+        : Array.isArray(attendanceResponse.data) 
+        ? attendanceResponse.data 
+        : [];
+
+      // Count unique classes (grade + section combinations)
+      const classesSet = new Set();
+      students.forEach(student => {
+        classesSet.add(`${student.gradeLevel}-${student.section}`);
+      });
+
+      // Calculate average attendance (last 7 days)
+      const today = new Date();
+      const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const recentAttendance = allAttendance.filter(r => {
+        const recordDate = new Date(r.date);
+        return recordDate >= sevenDaysAgo && recordDate <= today;
+      });
+
+      const presentCount = recentAttendance.filter(r => r.status === 'Present').length;
+      const totalCount = recentAttendance.length;
+      const avgAttendance = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+
+      setStats({
+        totalStudents: students.length,
+        activeClasses: classesSet.size,
+        averageAttendance: avgAttendance
+      });
+
+      // Build recent activity from latest attendance and updates
+      const activities = [];
+
+      // Add recent attendance records
+      const latestAttendance = allAttendance
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 2);
+
+      latestAttendance.forEach(record => {
+        const date = new Date(record.timestamp);
+        const hoursAgo = Math.round((Date.now() - date.getTime()) / (1000 * 60 * 60));
+        activities.push({
+          type: 'attendance',
+          message: `Attendance recorded: ${record.studentName}`,
+          detail: `${record.gradeLevel} - ${record.section} (${record.status})`,
+          time: hoursAgo === 0 ? 'Just now' : `${hoursAgo} hour${hoursAgo > 1 ? 's' : ''} ago`
+        });
+      });
+
+      // Add student count milestone
+      if (activities.length < 2) {
+        activities.push({
+          type: 'students',
+          message: `Total students in system: ${students.length}`,
+          detail: `Across ${classesSet.size} active classes`,
+          time: 'Today'
+        });
+      }
+
+      setRecentActivity(activities);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="bg-white rounded-lg shadow p-5 border border-gray-300 border-b-red-800 border-b-4">
@@ -19,38 +114,39 @@ export default function TeacherDashboard() {
         <div className="bg-gray-50 p-4 rounded-lg text-center shadow border border-gray-300 border-l-red-800 border-l-8 hover:shadow-md transition">
           <UsersIcon className="w-6 h-6 flex mx-auto text-[#8f0303]" />
           <p className="text-sm text-gray-500">Total Students</p>
-          <h3 className="text-2xl font-semibold text-[#b30000]">504</h3>
+          <h3 className="text-2xl font-semibold text-[#b30000]">{stats.totalStudents}</h3>
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg text-center shadow border border-gray-300 border-l-red-800 border-l-8 hover:shadow-md transition">
           <CalendarIcon className="w-6 h-6 flex mx-auto text-[#8f0303]" />
           <p className="text-sm text-gray-500">Active Classes</p>
-          <h3 className="text-2xl font-semibold text-[#b30000]">56</h3>
+          <h3 className="text-2xl font-semibold text-[#b30000]">{stats.activeClasses}</h3>
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg text-center shadow border border-gray-300 border-l-red-800 border-l-8 hover:shadow-md transition">
           <ChartBarSquareIcon className="w-6 h-6 flex mx-auto text-[#8f0303]" />
           <p className="text-sm text-gray-500">Average Attendance</p>
-          <h3 className="text-2xl font-semibold text-[#b30000]">93.3%</h3>
+          <h3 className="text-2xl font-semibold text-[#b30000]">{stats.averageAttendance}%</h3>
         </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 border border-gray-300">
         <h3 className="text-2xl font-bold mb-4 text-gray-900">Recent Activity</h3>
-        <div className="space-y-3">
-          <div className="bg-blue-50 p-3 rounded-md border border-gray-200 hover:shadow-sm transition">
-            <p className="font-medium">
-              New grades uploaded for Grade 1-A: Mathematics
-            </p>
-            <p className="text-xs text-gray-500">2 hours ago</p>
+        {loading ? (
+          <p className="text-gray-500 text-center py-4">Loading recent activity...</p>
+        ) : recentActivity.length === 0 ? (
+          <p className="text-gray-500 text-center py-4">No recent activity</p>
+        ) : (
+          <div className="space-y-3">
+            {recentActivity.map((activity, idx) => (
+              <div key={idx} className="bg-blue-50 p-3 rounded-md border border-gray-200 hover:shadow-sm transition">
+                <p className="font-medium">{activity.message}</p>
+                <p className="text-xs text-gray-600">{activity.detail}</p>
+                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+              </div>
+            ))}
           </div>
-          <div className="bg-blue-50 p-3 rounded-md border border-gray-200 hover:shadow-sm transition">
-            <p className="font-medium">
-              Attendance recorded for Grade 3-B (October 23, 2025)
-            </p>
-            <p className="text-xs text-gray-500">5 hours ago</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
