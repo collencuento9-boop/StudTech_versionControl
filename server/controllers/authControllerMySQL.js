@@ -65,16 +65,23 @@ exports.restrictTo = (...roles) => {
 // Login user
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
+    const loginField = email || username;
 
-    if (!email || !password) {
+    if (!loginField || !password) {
       return res.status(400).json({
         status: 'fail',
-        message: 'Please provide email and password!',
+        message: 'Please provide email/username and password!',
       });
     }
 
-    const users = await query('SELECT * FROM users WHERE email = ?', [email]);
+    // Check both email and username fields for flexibility (case-insensitive)
+    let users = await query('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [loginField]);
+    
+    // If not found by email, try by username (case-insensitive)
+    if (users.length === 0) {
+      users = await query('SELECT * FROM users WHERE LOWER(username) = LOWER(?)', [loginField]);
+    }
 
     if (users.length === 0) {
       return res.status(401).json({

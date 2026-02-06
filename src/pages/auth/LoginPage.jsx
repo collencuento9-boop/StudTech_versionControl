@@ -17,24 +17,21 @@ export default function LoginPage() {
     setError("");
 
     if (!email || !password) {
-      setError("Please fill in both email and password.");
+      setError("Please fill in both email/username and password.");
       return;
     }
 
-    const emailLower = email.toLowerCase().trim();
-
-    if (!emailLower.endsWith("@wmsu.edu.ph")) {
-      setError("Please use your official WMSU email (@wmsu.edu.ph)");
-      return;
-    }
+    const emailOrUsername = email.toLowerCase().trim();
 
     try {
       setIsSubmitting(true);
 
-      const response = await authService.login({
-        email: emailLower,
-        password,
-      });
+      // Send the appropriate field based on whether it's an email or username
+      const loginData = emailOrUsername.includes('@') 
+        ? { email: emailOrUsername, password }
+        : { username: emailOrUsername, password };
+
+      const response = await authService.login(loginData);
 
       const user = response?.data?.user;
       const role = user?.role?.toLowerCase();
@@ -96,10 +93,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
           <div>
-            <label className="text-sm font-medium text-gray-700">Email</label>
+            <label className="text-sm font-medium text-gray-700">Email or Username</label>
             <input
-              type="email"
-              placeholder="teacher@wmsu.edu.ph or student@wmsu.edu.ph"
+              type="text"
+              placeholder="email@wmsu.edu.ph or username (e.g., hz202305178)"
               className="w-full mt-1 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 transition"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

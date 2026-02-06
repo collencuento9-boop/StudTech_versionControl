@@ -39,32 +39,59 @@ exports.getAllStudents = async (req, res) => {
     const students = await query('SELECT * FROM users WHERE role = "student" ORDER BY createdAt DESC');
     
     // Map to student format for frontend compatibility
-    const mappedStudents = students.map(student => ({
-      id: student.id,
-      lrn: student.id, // Use ID as LRN if not available
-      firstName: student.firstName,
-      lastName: student.lastName,
-      fullName: student.firstName + ' ' + student.lastName,
-      age: 10, // Default age
-      sex: 'Not Specified',
-      email: student.email,
-      gradeLevel: student.gradeLevel || 'Grade 3',
-      section: student.section || 'Wisdom',
-      status: 'Active',
-      password: student.password,
-      profilePic: null,
-      qrCode: null,
-      grades: null,
-      attendance: null,
-      average: null,
-      createdAt: student.createdAt,
-      username: student.username,
-      role: student.role
-    }));
+    const mappedStudents = students.map(student => {
+      let parsedGrades = null;
+      try {
+        if (student.grades && typeof student.grades === 'string') {
+          parsedGrades = JSON.parse(student.grades);
+        } else if (student.grades && typeof student.grades === 'object') {
+          parsedGrades = student.grades;
+        }
+      } catch (e) {
+        console.error('Error parsing grades for student:', student.id, e);
+        parsedGrades = null;
+      }
+      
+      return {
+        id: student.id,
+        lrn: student.id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        fullName: student.firstName + ' ' + student.lastName,
+        name: student.firstName + ' ' + student.lastName,
+        studentId: student.id,
+        age: 10,
+        sex: 'Not Specified',
+        email: student.email,
+        gradeLevel: student.gradeLevel || 'Grade 3',
+        section: student.section || 'Wisdom',
+        status: 'Active',
+        password: student.password,
+        profilePic: null,
+        qrCode: student.qr_code,
+        grades: parsedGrades,
+        attendance: null,
+        average: student.average || 0,
+        createdAt: student.createdAt,
+        username: student.username,
+        role: student.role
+      };
+    });
     
-    res.json(mappedStudents);
+    // Return in consistent format with success flag
+    res.json({
+      success: true,
+      status: 'success',
+      data: mappedStudents,
+      count: mappedStudents.length
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error getting students:', error);
+    res.status(500).json({ 
+      success: false,
+      status: 'error',
+      error: error.message 
+    });
   }
 };
 
@@ -141,5 +168,67 @@ exports.getStudentsByGradeAndSection = async (req, res) => {
     res.json(students);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+// Update student grades
+exports.updateStudentGrades = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { grades, average, quarter, lastGradeEditTime } = req.body;
+
+    console.log(`Updating grades for student ${id}:`, { grades, average, quarter });
+
+    // Get existing grades data
+    const students = await query('SELECT grades FROM users WHERE id = ?', [id]);
+    
+    if (students.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    const existingGrades = students[0].grades ? JSON.parse(students[0].grades) : {};
+    
+    // Properly merge grades per subject and quarter
+    const updatedGrades = { ...existingGrades };
+    
+    Object.keys(grades).forEach(subject => {
+      if (!updatedGrades[subject]) {
+        updatedGrades[subject] = {};
+      }
+      
+      // Merge quarter data
+      if (typeof grades[subject] === 'object') {
+        updatedGrades[subject] = {
+          ...updatedGrades[subject],
+          ...grades[subject]
+        };
+      }
+    });
+
+    // Update in database
+    await query(
+      'UPDATE users SET grades = ?, average = ?, lastGradeEditTime = ? WHERE id = ?',
+      [JSON.stringify(updatedGrades), average, lastGradeEditTime, id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Grades updated successfully',
+      data: {
+        studentId: id,
+        grades: updatedGrades,
+        average: average,
+        quarter: quarter
+      }
+    });
+  } catch (error) {
+    console.error('Error updating student grades:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating grades',
+      error: error.message
+    });
   }
 };

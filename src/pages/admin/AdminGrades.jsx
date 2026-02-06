@@ -18,12 +18,12 @@ export default function AdminGrades() {
     try {
       setLoading(true);
 
-      // Fetch students with grades
+      // Fetch ALL students (with and without grades)
       const studentsRes = await axios.get('/students');
       const studentsData = Array.isArray(studentsRes.data.data) ? studentsRes.data.data : 
                            Array.isArray(studentsRes.data) ? studentsRes.data : [];
 
-      // Sort by average (highest first) and calculate rank
+      // Sort by average (highest first) and calculate rank - with grades first
       const sortedStudents = studentsData
         .filter(s => s.average && s.average > 0)
         .sort((a, b) => (b.average || 0) - (a.average || 0))
@@ -32,15 +32,17 @@ export default function AdminGrades() {
           rank: index + 1
         }));
 
-      // Include students without grades at the end
+      // Include students without grades at the end (ALL of them)
       const studentsWithoutGrades = studentsData
         .filter(s => !s.average || s.average === 0)
         .map(student => ({ ...student, rank: '-' }));
 
-      setStudents([...sortedStudents, ...studentsWithoutGrades]);
+      // Combine: students with grades first, then students without
+      const allStudents = [...sortedStudents, ...studentsWithoutGrades];
+      setStudents(allStudents);
 
-      // Extract unique sections
-      const uniqueSections = [...new Set(studentsData.map(s => `${s.gradeLevel} - ${s.section}`))].filter(s => s !== 'undefined - undefined');
+      // Extract unique sections from ALL students (not just ones with grades)
+      const uniqueSections = [...new Set(allStudents.map(s => `${s.gradeLevel} - ${s.section}`))].filter(s => s !== 'undefined - undefined');
       setSections(uniqueSections.sort());
 
       // Generate recent updates from students with grades

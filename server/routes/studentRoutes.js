@@ -19,9 +19,10 @@ router.get('/:id', studentController.getStudentById);
 // Update a student
 router.put('/:id', studentController.updateStudent);
 
+// Update student grades
+router.put('/:id/grades', studentController.updateStudentGrades);
+
 // Delete a specific student
 router.delete('/:id', studentController.deleteStudent);
-
-module.exports = router;
 
 module.exports = router;

@@ -1,38 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
-const path = require('path');
 const { sendAttendanceEmail } = require('../utils/emailService');
-
-// Path to attendance data file
-const attendanceDataPath = path.join(__dirname, '../../data/attendance.json');
-
-// Initialize attendance file if it doesn't exist
-if (!fs.existsSync(attendanceDataPath)) {
-  fs.writeFileSync(attendanceDataPath, JSON.stringify([]));
-}
-
-// Get attendance data
-const getAttendanceData = () => {
-  try {
-    const data = fs.readFileSync(attendanceDataPath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error reading attendance data:', error);
-    return [];
-  }
-};
-
-// Save attendance data
-const saveAttendanceData = (data) => {
-  try {
-    fs.writeFileSync(attendanceDataPath, JSON.stringify(data, null, 2));
-    return true;
-  } catch (error) {
-    console.error('Error saving attendance data:', error);
-    return false;
-  }
-};
+const { query } = require('../config/database');
 
 // POST /api/attendance - Record attendance via QR scan
 router.post('/', async (req, res) => {
@@ -62,91 +31,105 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Get student data to validate
-    const studentsPath = path.join(__dirname, '../../data/students.json');
-    const students = JSON.parse(fs.readFileSync(studentsPath, 'utf8'));
+    // Get student data from MySQL database (users table)
+    const students = await query('SELECT * FROM users WHERE role = "student"');
+    console.log(`Found ${students.length} students in database`);
+    console.log(`Looking for student with ID: ${studentId}`);
     
-    // Check for student by ID, studentId, or LRN
+    // Check for student by ID
     const student = students.find(s => 
       s.id === studentId || 
-      s.studentId === studentId || 
-      s.lrn === studentId
+      s.username === studentId
     );
     
     if (!student) {
       console.log('Student not found with ID:', studentId);
+      console.log('Sample student IDs:', students.slice(0, 3).map(s => ({ id: s.id, username: s.username })));
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
-
-    // Get current attendance data
-    const attendanceData = getAttendanceData();
     
+    console.log(`Found student: ${student.firstName} ${student.lastName}`);
+
     // Check if already recorded today
     const today = date || new Date().toISOString().split('T')[0];
-    const existingRecord = attendanceData.find(record => 
-      record.studentId === studentId && 
-      record.date === today
+    const existingRecords = await query(
+      'SELECT * FROM attendance WHERE student_id = ? AND date = ?',
+      [studentId, today]
     );
 
     // For mobile app, allow updating existing records
-    if (existingRecord && !teacherId) {
+    if (existingRecords.length > 0 && !teacherId) {
       return res.status(400).json({
         success: false,
         message: 'Attendance already recorded for today',
-        data: existingRecord
+        data: existingRecords[0]
       });
     }
 
     // Create new attendance record
-    const attendanceRecord = {
-      id: Date.now().toString(),
-      studentId: studentId,
-      studentName: student.fullName || student.name,
-      gradeLevel: student.gradeLevel,
-      section: student.section,
-      date: today,
-      timestamp: timestamp || new Date().toISOString(),
-      time: time || new Date().toLocaleTimeString(),
-      status: status || 'Present',
-      period: period || 'morning',
-      location: location || 'Mobile App',
-      teacherId: teacherId || null,
-      teacherName: teacherName || null,
-      deviceInfo: deviceInfo || {},
-      qrData: qrData
-    };
+    const attendanceId = Date.now().toString();
+    const currentTimestamp = timestamp || new Date().toISOString();
+    const currentTime = time || new Date().toLocaleTimeString();
+    
+    // If updating existing record, delete old one
+    if (existingRecords.length > 0 && teacherId) {
+      await query('DELETE FROM attendance WHERE student_id = ? AND date = ?', [studentId, today]);
+    }
 
-    // If updating existing record, remove old one
-    if (existingRecord && teacherId) {
-      const index = attendanceData.findIndex(record => 
-        record.studentId === studentId && record.date === today
-      );
-      if (index !== -1) {
-        attendanceData.splice(index, 1);
+    // Insert new record
+    await query(
+      `INSERT INTO attendance (
+        id, student_id, student_name, grade_level, section,
+        date, timestamp, time, status, period,
+        location, teacher_id, teacher_name, device_info, qr_data
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        attendanceId,
+        studentId,
+        `${student.firstName} ${student.lastName}`.trim(),
+        student.gradeLevel || 'N/A',
+        student.section || 'N/A',
+        today,
+        currentTimestamp,
+        currentTime,
+        status || 'Present',
+        period || 'morning',
+        location || 'Mobile App',
+        teacherId || null,
+        teacherName || null,
+        JSON.stringify(deviceInfo || {}),
+        JSON.stringify(qrData || {})
+      ]
+    );
+
+    // Get the inserted record
+    const insertedRecords = await query('SELECT * FROM attendance WHERE id = ?', [attendanceId]);
+    const attendanceRecord = insertedRecords[0];
+    
+    console.log('Saved attendance record:', attendanceRecord);
+
+    res.json({
+      success: true,
+      message: 'Attendance recorded successfully',
+      data: {
+        id: attendanceRecord.id,
+        studentId: attendanceRecord.student_id,
+        studentName: attendanceRecord.student_name,
+        gradeLevel: attendanceRecord.grade_level,
+        section: attendanceRecord.section,
+        date: attendanceRecord.date,
+        timestamp: attendanceRecord.timestamp,
+        time: attendanceRecord.time,
+        status: attendanceRecord.status,
+        period: attendanceRecord.period,
+        location: attendanceRecord.location,
+        teacherId: attendanceRecord.teacher_id,
+        teacherName: attendanceRecord.teacher_name
       }
-    }
-
-    // Add to attendance data
-    attendanceData.push(attendanceRecord);
-    
-    console.log('Saving attendance record:', attendanceRecord);
-    
-    // Save to file
-    if (saveAttendanceData(attendanceData)) {
-      res.json({
-        success: true,
-        message: 'Attendance recorded successfully',
-        data: attendanceRecord
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to save attendance record'
-      });
-    }
+    });
 
   } catch (error) {
     console.error('Error recording attendance:', error);
@@ -162,25 +145,58 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { date, studentId, gradeLevel, section } = req.query;
-    let attendanceData = getAttendanceData();
-
-    // Apply filters
+    
+    let sqlQuery = 'SELECT * FROM attendance WHERE 1=1';
+    const params = [];
+    
     if (date) {
-      attendanceData = attendanceData.filter(record => record.date === date);
+      sqlQuery += ' AND date = ?';
+      params.push(date);
     }
+    
     if (studentId) {
-      attendanceData = attendanceData.filter(record => record.studentId === studentId);
+      sqlQuery += ' AND student_id = ?';
+      params.push(studentId);
     }
+    
     if (gradeLevel) {
-      attendanceData = attendanceData.filter(record => record.gradeLevel === gradeLevel);
+      sqlQuery += ' AND grade_level = ?';
+      params.push(gradeLevel);
     }
+    
     if (section) {
-      attendanceData = attendanceData.filter(record => record.section === section);
+      sqlQuery += ' AND section = ?';
+      params.push(section);
     }
+    
+    sqlQuery += ' ORDER BY timestamp DESC';
+    
+    const records = await query(sqlQuery, params);
+    
+    // Transform snake_case to camelCase for frontend
+    const transformedRecords = records.map(record => ({
+      id: record.id,
+      studentId: record.student_id,
+      studentName: record.student_name,
+      gradeLevel: record.grade_level,
+      section: record.section,
+      date: record.date instanceof Date ? record.date.toISOString().split('T')[0] : record.date,
+      timestamp: record.timestamp,
+      time: record.time,
+      status: record.status,
+      period: record.period,
+      location: record.location,
+      teacherId: record.teacher_id,
+      teacherName: record.teacher_name,
+      deviceInfo: record.device_info,
+      qrData: record.qr_data,
+      createdAt: record.created_at
+    }));
 
     res.json({
       success: true,
-      data: attendanceData
+      data: transformedRecords,
+      count: transformedRecords.length
     });
 
   } catch (error) {
@@ -197,13 +213,32 @@ router.get('/', async (req, res) => {
 router.get('/today', async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const attendanceData = getAttendanceData();
-    const todayRecords = attendanceData.filter(record => record.date === today);
+    const records = await query('SELECT * FROM attendance WHERE date = ? ORDER BY timestamp DESC', [today]);
+    
+    // Transform snake_case to camelCase
+    const transformedRecords = records.map(record => ({
+      id: record.id,
+      studentId: record.student_id,
+      studentName: record.student_name,
+      gradeLevel: record.grade_level,
+      section: record.section,
+      date: record.date instanceof Date ? record.date.toISOString().split('T')[0] : record.date,
+      timestamp: record.timestamp,
+      time: record.time,
+      status: record.status,
+      period: record.period,
+      location: record.location,
+      teacherId: record.teacher_id,
+      teacherName: record.teacher_name,
+      deviceInfo: record.device_info,
+      qrData: record.qr_data,
+      createdAt: record.created_at
+    }));
 
     res.json({
       success: true,
-      data: todayRecords,
-      count: todayRecords.length
+      data: transformedRecords,
+      count: transformedRecords.length
     });
 
   } catch (error) {
@@ -220,13 +255,32 @@ router.get('/today', async (req, res) => {
 router.get('/student/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const attendanceData = getAttendanceData();
-    const studentRecords = attendanceData.filter(record => record.studentId === id);
+    const records = await query('SELECT * FROM attendance WHERE student_id = ? ORDER BY date DESC', [id]);
+    
+    // Transform snake_case to camelCase
+    const transformedRecords = records.map(record => ({
+      id: record.id,
+      studentId: record.student_id,
+      studentName: record.student_name,
+      gradeLevel: record.grade_level,
+      section: record.section,
+      date: record.date instanceof Date ? record.date.toISOString().split('T')[0] : record.date,
+      timestamp: record.timestamp,
+      time: record.time,
+      status: record.status,
+      period: record.period,
+      location: record.location,
+      teacherId: record.teacher_id,
+      teacherName: record.teacher_name,
+      deviceInfo: record.device_info,
+      qrData: record.qr_data,
+      createdAt: record.created_at
+    }));
 
     res.json({
       success: true,
-      data: studentRecords,
-      count: studentRecords.length
+      data: transformedRecords,
+      count: transformedRecords.length
     });
 
   } catch (error) {

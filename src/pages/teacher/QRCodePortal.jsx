@@ -327,6 +327,16 @@ export default function QRCodePortal() {
         status = 'Absent';
       }
 
+      // Determine period based on time
+      const period = hour < 12 ? 'morning' : 'afternoon';
+      
+      // Get current user from localStorage
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const teacherId = currentUser.id || currentUser.username || null;
+      const teacherName = currentUser.firstName && currentUser.lastName 
+        ? `${currentUser.firstName} ${currentUser.lastName}` 
+        : currentUser.name || 'QR Portal';
+
       // Record attendance to backend
       try {
         const response = await axios.post('/attendance', {
@@ -334,36 +344,27 @@ export default function QRCodePortal() {
           name: scannedStudent.fullName,
           gradeLevel: scannedStudent.gradeLevel,
           section: scannedStudent.section,
+          status: status,
+          date: selectedDate,
+          time: timeStr,
+          timestamp: now.toISOString(),
+          period: period,
+          teacherId: teacherId,
+          teacherName: teacherName,
           qrData: qrData,
-          location: 'QR Portal',
+          location: 'QR Portal - Web',
           deviceInfo: {
-            userAgent: navigator.userAgent
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            source: 'web-qr-portal'
           }
         });
 
         if (response.data.success) {
-          // Update the students list with new attendance record
-          const updatedStudents = students.map(s => {
-            if (s.id === scannedStudent.id) {
-              return { ...s, attendance: status, lastScanned: timeStr };
-            }
-            return s;
-          });
-          setStudents(updatedStudents);
+          // Reload attendance data from database
+          await loadAttendanceForDate(selectedDate);
 
-          // Update statistics
-          const updatedStats = { ...attendanceStats };
-          updatedStats.todayScans = (updatedStats.todayScans || 0) + 1;
-          if (status === 'Present') {
-            updatedStats.presentStudents = (updatedStats.presentStudents || 0) + 1;
-          } else if (status === 'Late') {
-            updatedStats.lateStudents = (updatedStats.lateStudents || 0) + 1;
-          } else {
-            updatedStats.absentStudents = (updatedStats.absentStudents || 0) + 1;
-          }
-          setAttendanceStats(updatedStats);
-
-          alert(`✓ ${scannedStudent.fullName}\nStatus: ${status}\nTime: ${timeStr}`);
+          alert(`✓ ${scannedStudent.fullName}\nStatus: ${status}\nTime: ${timeStr}\nRecorded in database!`);
         } else {
           alert(`Failed: ${response.data.message || 'Unknown error'}`);
         }

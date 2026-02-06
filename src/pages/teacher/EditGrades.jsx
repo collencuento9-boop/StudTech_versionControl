@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/axiosConfig";
+import GradesReportCard from "../../components/GradesReportCard";
 import {
   BookOpenIcon,
   UserGroupIcon,
@@ -9,6 +10,7 @@ import {
   PrinterIcon,
   ArrowDownTrayIcon,
   XMarkIcon,
+  DocumentArrowDownIcon,
 } from "@heroicons/react/24/solid";
 
 export default function EditGrades() {
@@ -30,6 +32,7 @@ export default function EditGrades() {
   const [gradeData, setGradeData] = useState({});
   const [isGradeLocked, setIsGradeLocked] = useState(false);
   const [lockReason, setLockReason] = useState("");
+  const [showReportCard, setShowReportCard] = useState(false);
 
   // Subjects by grade level
   const subjectsByGrade = {
@@ -290,63 +293,57 @@ export default function EditGrades() {
       }
     }
 
-    try {
-      const finalAverage = calculateFinalAverage();
-      const quarterMap = {
-        'q1': 'q1',
-        'q2': 'q2', 
-        'q3': 'q3',
-        'q4': 'q4',
-        'all': 'all'
-      };
-      const quarterValue = quarterMap[selectedQuarter] || 'q1';
+    const finalAverage = calculateFinalAverage();
+    const quarterMap = {
+      'q1': 'q1',
+      'q2': 'q2', 
+      'q3': 'q3',
+      'q4': 'q4',
+      'all': 'all'
+    };
+    const quarterValue = quarterMap[selectedQuarter] || 'q1';
+    
+    // Extract grades for the selected quarter(s)
+    const quarterGrades = {};
+    Object.keys(gradeData).forEach(subject => {
+      // For subject teachers, only include authorized subjects
+      if (userRole === 'subject_teacher' && availableSubjects.length > 0 && !availableSubjects.includes(subject)) {
+        return;
+      }
       
-      // Extract grades for the selected quarter(s)
-      const quarterGrades = {};
-      Object.keys(gradeData).forEach(subject => {
-        // For subject teachers, only include authorized subjects
-        if (userRole === 'subject_teacher' && availableSubjects.length > 0 && !availableSubjects.includes(subject)) {
-          return;
-        }
-        
-        if (selectedQuarter === "all") {
-          quarterGrades[subject] = {
-            q1: gradeData[subject].q1 || 0,
-            q2: gradeData[subject].q2 || 0,
-            q3: gradeData[subject].q3 || 0,
-            q4: gradeData[subject].q4 || 0,
-          };
-        } else {
-          quarterGrades[subject] = gradeData[subject][selectedQuarter] || 0;
-        }
+      if (selectedQuarter === "all") {
+        quarterGrades[subject] = {
+          q1: gradeData[subject].q1 || 0,
+          q2: gradeData[subject].q2 || 0,
+          q3: gradeData[subject].q3 || 0,
+          q4: gradeData[subject].q4 || 0,
+        };
+      } else {
+        // FIXED: Store as object with quarter key
+        quarterGrades[subject] = {
+          [selectedQuarter]: gradeData[subject][selectedQuarter] || 0
+        };
+      }
+    });
+
+    try {
+      const response = await api.put(`/students/${selectedStudent.id}/grades`, {
+        grades: quarterGrades,
+        average: parseFloat(finalAverage),
+        quarter: quarterValue,
+        lastGradeEditTime: new Date().toISOString()
       });
 
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/students/${selectedStudent.id}/grades`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          grades: quarterGrades,
-          average: parseFloat(finalAverage),
-          quarter: quarterValue,
-          lastGradeEditTime: new Date().toISOString()
-        })
-      });
-
-      if (response.ok) {
+      if (response.data?.success) {
         alert(`✅ Grades saved successfully! You have 24 hours to edit them again.`);
         fetchStudents();
         setShowGradeModal(false);
       } else {
-        const errorData = await response.json();
-        alert(`❌ Failed to save grades: ${errorData.message || 'Unknown error'}`);
+        alert(`❌ Failed to save grades: ${response.data?.message || 'Unknown error'}`);
       }
-    } catch (error) {
-      console.error('Error saving grades:', error);
-      alert('❌ Error: ' + error.message);
+    } catch (apiError) {
+      console.error('Error saving grades:', apiError);
+      alert(`❌ Error saving grades: ${apiError.response?.data?.message || apiError.message}`);
     }
   };
 
@@ -505,11 +502,21 @@ export default function EditGrades() {
 
       {/* Students Table */}
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-        <div className="px-8 py-6 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">
-            Student List - {selectedQuarter === 'q1' ? 'Quarter 1' : selectedQuarter === 'q2' ? 'Quarter 2' : selectedQuarter === 'q3' ? 'Quarter 3' : selectedQuarter === 'q4' ? 'Quarter 4' : 'All Quarters'} | Click Name to Edit Grades
-          </h3>
-          <p className="text-sm text-gray-600 mt-1">Click on any student's name to edit their grades</p>
+        <div className="px-8 py-6 border-b border-gray-200 flex justify-between items-center">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">
+              Student List - {selectedQuarter === 'q1' ? 'Quarter 1' : selectedQuarter === 'q2' ? 'Quarter 2' : selectedQuarter === 'q3' ? 'Quarter 3' : selectedQuarter === 'q4' ? 'Quarter 4' : 'All Quarters'} | Click Name to Edit Grades
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">Click on any student's name to edit their grades</p>
+          </div>
+          <button
+            onClick={() => setShowReportCard(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            title="Export grades as report card"
+          >
+            <DocumentArrowDownIcon className="w-5 h-5" />
+            📋 Export Report
+          </button>
         </div>
 
         <div className="overflow-x-auto scrollbar-hide">
@@ -615,7 +622,7 @@ export default function EditGrades() {
               </button>
             </div>
 
-            {/* Grades Table */}
+            {/* Grades Table - Show Only Total Q1 Grade */}
             <div className="p-8">
               {isGradeLocked && (
                 <div className="mb-6 p-4 bg-red-100 border border-red-300 rounded-lg">
@@ -627,32 +634,12 @@ export default function EditGrades() {
                   <thead>
                     <tr className="bg-gray-100">
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 border">Subject</th>
-                      {selectedQuarter === 'all' ? (
-                        <>
-                          <th className="px-4 py-3 text-center font-semibold text-gray-700 border">Q1</th>
-                          <th className="px-4 py-3 text-center font-semibold text-gray-700 border">Q2</th>
-                          <th className="px-4 py-3 text-center font-semibold text-gray-700 border">Q3</th>
-                          <th className="px-4 py-3 text-center font-semibold text-gray-700 border">Q4</th>
-                        </>
-                      ) : (
-                        <th className="px-4 py-3 text-center font-semibold text-gray-700 border">
-                          {selectedQuarter === 'q1' ? 'Q1' : selectedQuarter === 'q2' ? 'Q2' : selectedQuarter === 'q3' ? 'Q3' : 'Q4'}
-                        </th>
-                      )}
-                      {selectedQuarter === 'all' && (
-                        <th className="px-4 py-3 text-center font-semibold text-gray-700 border bg-blue-50">Average</th>
-                      )}
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700 border">Q1</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.keys(gradeData)
-                      .filter(subject => {
-                        // Show all subjects for advisers, only assigned subjects for teachers
-                        if (userRole === 'adviser' || availableSubjects.length === 0) {
-                          return true;
-                        }
-                        return availableSubjects.includes(subject);
-                      })
+                      .filter(subject => subject !== 'Total Q1')
                       .map((subject) => {
                         const isUnauthorized = userRole === 'subject_teacher' && availableSubjects.length > 0 && !availableSubjects.includes(subject);
                         
@@ -662,100 +649,52 @@ export default function EditGrades() {
                               {subject}
                               {isUnauthorized && <span className="text-xs text-gray-500 ml-2">(Not assigned)</span>}
                             </td>
-                            
-                            {/* Render quarters based on selection */}
-                            {selectedQuarter === 'all' 
-                              ? (
-                                  <>
-                                    {['q1', 'q2', 'q3', 'q4'].map((quarter) => (
-                                      <td key={quarter} className="px-4 py-3 border">
-                                        <div className="flex items-center gap-1">
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            placeholder="-"
-                                            value={gradeData[subject][quarter]}
-                                            onChange={(e) => handleGradeChange(subject, quarter, e.target.value)}
-                                            disabled={isGradeLocked || isUnauthorized}
-                                            className={`w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${isGradeLocked || isUnauthorized ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                            title={isUnauthorized ? 'You do not have permission to edit this subject' : ''}
-                                          />
-                                          {!isGradeLocked && !isUnauthorized && gradeData[subject][quarter] !== '' && gradeData[subject][quarter] !== 0 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => clearGrade(subject, quarter)}
-                                              className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-1.5 py-1 transition text-sm font-bold"
-                                              title="Clear grade"
-                                            >
-                                              ✕
-                                            </button>
-                                          )}
-                                        </div>
-                                      </td>
-                                    ))}
-                                  </>
-                                )
-                              : (
-                                  <td className="px-4 py-3 border">
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        placeholder="-"
-                                        value={gradeData[subject][selectedQuarter]}
-                                        onChange={(e) => handleGradeChange(subject, selectedQuarter, e.target.value)}
-                                        disabled={isGradeLocked || isUnauthorized}
-                                        className={`w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${isGradeLocked || isUnauthorized ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                        title={isUnauthorized ? 'You do not have permission to edit this subject' : ''}
-                                      />
-                                      {!isGradeLocked && !isUnauthorized && gradeData[subject][selectedQuarter] !== '' && gradeData[subject][selectedQuarter] !== 0 && (
-                                        <button
-                                          type="button"
-                                          onClick={() => clearGrade(subject, selectedQuarter)}
-                                          className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-1.5 py-1 transition text-sm font-bold"
-                                          title="Clear grade"
-                                        >
-                                          ✕
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
+                            <td className="px-4 py-3 border">
+                              <div className="flex items-center justify-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  placeholder="-"
+                                  value={gradeData[subject]?.q1 || ''}
+                                  onChange={(e) => handleGradeChange(subject, 'q1', e.target.value)}
+                                  disabled={isGradeLocked || isUnauthorized}
+                                  className={`w-16 text-center border border-gray-300 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 ${isGradeLocked || isUnauthorized ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                  title={isUnauthorized ? 'You do not have permission to edit this subject' : ''}
+                                />
+                                {!isGradeLocked && !isUnauthorized && gradeData[subject]?.q1 !== '' && gradeData[subject]?.q1 !== 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGradeChange(subject, 'q1', '')}
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded px-1.5 py-1 transition text-sm font-bold"
+                                    title="Clear grade"
+                                  >
+                                    ✕
+                                  </button>
                                 )}
-                            
-                            {selectedQuarter === 'all' && (
-                              <td className="px-4 py-3 text-center font-bold text-blue-700 border bg-blue-50">
-                                {calculateSubjectAverage(subject)}
-                              </td>
-                            )}
+                              </div>
+                            </td>
                           </tr>
                         );
                       })}
                   </tbody>
                   <tfoot>
-                    {selectedQuarter === 'all' && (
-                      <tr className="bg-gray-100">
-                        <td colSpan="6" className="px-4 py-4 text-right font-bold text-gray-900 border">
-                          Final Average:
-                        </td>
-                        <td className="px-4 py-4 text-center font-bold text-green-700 border text-2xl">
-                          {calculateFinalAverage()}
-                        </td>
-                      </tr>
-                    )}
-                    <tr className="bg-gray-50">
-                      <td colSpan={selectedQuarter === 'all' ? "6" : "2"} className="px-4 py-3 text-right font-semibold text-gray-700 border">
-                        Remarks:
+                    <tr className="bg-blue-50 border-t-2 border-blue-300">
+                      <td className="px-4 py-4 text-right font-bold text-gray-900 border">
+                        Total Q1 Grade:
                       </td>
-                      <td className="px-4 py-3 text-center font-semibold border">
-                        <span className={`px-4 py-2 rounded-full text-sm ${
-                          parseFloat(calculateFinalAverage()) >= 90 ? "bg-green-100 text-green-800" :
-                          parseFloat(calculateFinalAverage()) >= 85 ? "bg-blue-100 text-blue-800" :
-                          parseFloat(calculateFinalAverage()) >= 80 ? "bg-yellow-100 text-yellow-800" :
-                          "bg-red-100 text-red-800"
-                        }`}>
-                          {getRemarks(parseFloat(calculateFinalAverage()))}
+                      <td className="px-4 py-4 text-center font-bold border">
+                        <span className="text-3xl text-blue-700">
+                          {(() => {
+                            const q1Grades = Object.keys(gradeData)
+                              .filter(subject => subject !== 'Total Q1')
+                              .map(subject => gradeData[subject]?.q1)
+                              .filter(grade => grade !== '' && grade !== 0 && grade !== null && grade !== undefined);
+                            
+                            if (q1Grades.length === 0) return '-';
+                            const avg = (q1Grades.reduce((a, b) => parseFloat(a) + parseFloat(b), 0) / q1Grades.length).toFixed(2);
+                            return avg;
+                          })()}
                         </span>
                       </td>
                     </tr>
@@ -786,6 +725,17 @@ export default function EditGrades() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Report Card Modal */}
+      {showReportCard && (
+        <GradesReportCard 
+          students={filteredStudents}
+          quarter={selectedQuarter}
+          gradeLevel={selectedGradeLevel === "All Grades" ? "All Grades" : selectedGradeLevel}
+          section={selectedSection}
+          onClose={() => setShowReportCard(false)}
+        />
       )}
     </div>
   );

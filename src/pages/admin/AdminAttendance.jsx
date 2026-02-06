@@ -29,8 +29,13 @@ export default function AdminAttendance() {
       const allAttendance = Array.isArray(attendanceRes.data.data) ? attendanceRes.data.data : 
                            Array.isArray(attendanceRes.data) ? attendanceRes.data : [];
 
+      console.log('All attendance records:', allAttendance);
+      console.log('Selected date:', selectedDate);
+
       // Filter by selected date
       const dateAttendance = allAttendance.filter(a => a.date === selectedDate);
+      
+      console.log('Filtered attendance for', selectedDate, ':', dateAttendance);
       setAttendance(dateAttendance);
 
       // Calculate stats

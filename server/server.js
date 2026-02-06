@@ -40,7 +40,7 @@ app.listen(PORT, '0.0.0.0', (err) => {
     return;
   }
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
-  console.log(`Access from network at http://192.168.1.169:${PORT}`);
+  console.log(`Access from network at http://192.168.0.153:${PORT}`);
 }).on('error', (err) => {
   console.error('Server error:', err);
 });
