@@ -2,6 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const userRoutes = require('./routes/userRoutes');
 const authRoutes = require('./routes/authRoutes');
 const studentRoutes = require('./routes/studentRoutes');
@@ -10,20 +11,28 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 
 const app = express();
 
-
 app.use(cors());
 app.use(express.json());
 
-
+// API routes
 app.use('/api/users', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
-// Basic route for testing
-app.get('/', (req, res) => {
-  res.send('WMSU Portal API is running');
+// Serve static frontend files from dist folder
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
+// API health check
+app.get('/api', (req, res) => {
+  res.json({ message: 'WMSU Portal API is running', status: 'OK' });
+});
+
+// Serve frontend for all other routes (for client-side routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Error handling middleware

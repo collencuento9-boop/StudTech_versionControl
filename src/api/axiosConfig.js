@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-// Get API URL from environment variables, fallback to localhost for development
-const apiURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Get API URL from environment variables
+// In production (Railway), use relative path '/api' since frontend and backend are served together
+// In development, use localhost
+const apiURL = import.meta.env.VITE_API_URL || 
+               (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
 const api = axios.create({
   baseURL: apiURL,
